@@ -1,0 +1,23 @@
+# Custom
+infra/test/
+infra/live/dev-future
+guide/
+.cursorignore
+secrets.json
+*.pem
+
+# Terraform
+**/.terraform/
+.terraform.*
+.terraform.lock.hcl
+.terraform.tfstate
+.terraform.tfstate.backup
+.terraform.tfstate.lock.info
+.terraform.tfstate.lock.info.backup
+terraform.tfvars
+*.tfstate
+*.tfstate.*
+terraform.tfvars.backup
+
+# MacOS
+.DS_Store
