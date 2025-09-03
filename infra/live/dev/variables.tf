@@ -139,3 +139,48 @@ variable "ecr_repo_name" {
   type        = string
   description = "ECR repository name"
 }
+
+variable "use_cross_account_role" {
+  type        = bool
+  description = "Whether to assume cross-account role (true for mgmt users, false for dev users)"
+  default     = false
+}
+
+
+# Frontend Configuration
+variable "frontend_domain_name" {
+  type        = string
+  description = "Domain name for the frontend (optional)"
+  default     = null
+}
+
+variable "frontend_acm_certificate_arn" {
+  type        = string
+  description = "ACM certificate ARN for the frontend domain (optional)"
+  default     = null
+}
+
+variable "s3_bucket_name" {
+  type        = string
+  description = "S3 bucket name for hosting React app (must be globally unique)"
+}
+
+variable "cloudfront_price_class" {
+  type        = string
+  description = "CloudFront price class"
+  default     = "PriceClass_100"
+  validation {
+    condition = contains([
+      "PriceClass_All",
+      "PriceClass_200",
+      "PriceClass_100"
+    ], var.cloudfront_price_class)
+    error_message = "Price class must be PriceClass_All, PriceClass_200, or PriceClass_100."
+  }
+}
+
+variable "enable_frontend_logging" {
+  type        = bool
+  description = "Enable CloudFront access logging"
+  default     = false
+}

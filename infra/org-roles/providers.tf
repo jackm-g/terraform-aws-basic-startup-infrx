@@ -8,11 +8,13 @@ terraform {
   }
 }
 
-# Get account IDs from Stage 1 (org-bootstrap)
+# Get account IDs from Stage 1 (org-bootstrap) - from management account backend
 data "terraform_remote_state" "bootstrap" {
-  backend = "local"
+  backend = "s3"
   config = {
-    path = "../org-bootstrap/terraform.tfstate"
+    bucket = "cgm-mgmt-terraform-state"
+    key    = "org-bootstrap/terraform.tfstate"
+    region = "us-east-1"
   }
 }
 
