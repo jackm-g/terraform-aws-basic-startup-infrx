@@ -61,7 +61,7 @@ infra/
         └── user_data.sh          # Bootstrap script for Docker deployment
 ```
 
-## 🚀 Quick Start
+## Quick Start
 
 This setup uses **decoupled backends** - management and dev accounts have separate Terraform state infrastructure. See [SETUP.md](SETUP.md) for detailed deployment instructions.
 
@@ -75,6 +75,7 @@ Before deploying, ensure you have:
    - **Management Account**: `organizations:*`, `iam:*`, `sts:AssumeRole`
    - **Dev Account**: Standard resource permissions (`ec2:*`, `elasticloadbalancing:*`, etc.)
 4. **EC2 Key Pair** created in the target account for SSH access
+5. **Domain and SSL certificates** configured manually (see Domain & SSL Setup section below)
 
 ### User Types
 
@@ -172,14 +173,6 @@ terraform init && terraform apply
 - **Secrets**: AWS Secrets Manager for application configuration
 - **IAM**: Roles for EC2 to access ECR and Secrets Manager
 
-## Key Benefits
-
-✅ **Decoupled Backends**: Management and dev accounts have separate state infrastructure  
-✅ **Flexible Access**: Supports both management account users and direct dev account users  
-✅ **Proper Security**: Each account controls its own backend and resources  
-✅ **Scalable Architecture**: Easy to add more environments (staging, prod, etc.)  
-✅ **Cross-Account References**: Dev infrastructure can reference management account roles
-
 ## Customization
 
 ### Adding More AWS Accounts
@@ -199,6 +192,45 @@ The EC2 instance includes a user data script that:
 
 Customize `user_data.sh` for your specific application needs.
 
+## Domain & SSL Setup
+
+### Manual Configuration Required
+
+The infrastructure assumes you have a domain and SSL certificates configured. These must be set up manually:
+
+#### 1. **Domain Registration & Route 53**
+- Register your domain (e.g., `yourdomain.com`) or transfer to Route 53
+- Create hosted zone in **management account** Route 53
+- Note the hosted zone ID for DNS record creation
+
+#### 2. **SSL Certificates (ACM)**
+- **Management Account**: Request certificate for your domain (e.g., `yourdomain.com`)
+- **Dev Account**: Request wildcard certificate (e.g., `*.yourdomain.com`) for backend services
+- Use **DNS validation** and add CNAME records to management account Route 53
+- Update `terraform.tfvars` with certificate ARNs
+
+#### 3. **DNS Records (Manual Creation)**
+After deploying infrastructure, manually create these Route 53 records in **management account**:
+
+```bash
+# Get ALB and CloudFront endpoints from Terraform outputs
+terraform output alb_dns_name
+terraform output cloudfront_domain_name
+
+# Create A records (Alias) in Route 53:
+# www.yourdomain.com → CloudFront distribution
+# api.yourdomain.com → Application Load Balancer
+```
+
+#### 4. **Update terraform.tfvars**
+```hcl
+# Use certificate ARNs from respective accounts
+acm_certificate_arn = "arn:aws:acm:region:dev-account:certificate/wildcard-cert-id"
+frontend_acm_certificate_arn = "arn:aws:acm:region:dev-account:certificate/www-cert-id"
+frontend_domain_name = "www.yourdomain.com"
+```
+
+**Note**: This multi-account DNS setup (domain in management, infrastructure in dev) is a best practice for enterprise environments.
 
 ## AWS SSO Setup
 
@@ -277,11 +309,8 @@ aws elbv2 describe-load-balancers --profile your-dev-profile
 - **Cross-account access**: Set `use_cross_account_role = false` for direct account access
 - **Remote state access**: Management account users need access to management backend for org-roles state
 
-For detailed troubleshooting and advanced configuration, see [SETUP.md](SETUP.md).
-
 ## Additional Resources
 
-- [Detailed Setup Guide](SETUP.md) - Comprehensive deployment and configuration guide
 - [AWS Organizations Best Practices](https://docs.aws.amazon.com/organizations/latest/userguide/orgs_best-practices.html)
 - [Terraform AWS Provider Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs)
 - [AWS Multi-Account Architecture](https://aws.amazon.com/organizations/)
