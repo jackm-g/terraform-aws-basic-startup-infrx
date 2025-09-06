@@ -1,11 +1,12 @@
 # AWS Organization & Infrastructure Terraform
 
-This repository provides a complete Terraform setup for bootstrapping AWS Organizations and deploying basic application infrastructure. It's designed as a foundation for multi-account AWS environments with proper governance, deployment patterns, and **decoupled backend infrastructure** for management and development accounts.
+This repository provides a complete Terraform setup for bootstrapping AWS Organizations and deploying basic application infrastructure. It's designed as a foundation for multi-account AWS environments with proper management and development accounts.
 
 ## Architecture Overview
 
-This setup creates a complete AWS multi-account infrastructure with **decoupled backend systems**:
+This setup creates a complete AWS multi-account infrastructure with the following components:
 
+### Account Structure
 ```
 ┌─────────────────────────────────────┐
 │         MANAGEMENT ACCOUNT          │
@@ -16,6 +17,10 @@ This setup creates a complete AWS multi-account infrastructure with **decoupled 
 │  └─────────────────────────────────┘ │
 │                                     │
 │  ├── AWS Organization (All Features) │
+│  ├── Route 53 Hosted Zone           │
+│  │   ├── yourdomain.com             │
+│  │   ├── www.yourdomain.com         │
+│  │   └── api.yourdomain.com         │
 │  ├── Organizational Units           │
 │  │   └── Workloads/                 │
 │  │       ├── Dev/                   │
@@ -23,8 +28,8 @@ This setup creates a complete AWS multi-account infrastructure with **decoupled 
 │  └── Cross-Account Roles            │
 └─────────────────────────────────────┘
                     │
+                    │ DNS Resolution
                     │ Cross-account
-                    │ role assumption
                     ▼
 ┌─────────────────────────────────────┐
 │           DEV ACCOUNT               │
@@ -34,38 +39,63 @@ This setup creates a complete AWS multi-account infrastructure with **decoupled 
 │  │  DDB: dev-terraform-locks       │ │
 │  └─────────────────────────────────┘ │
 │                                     │
-│  ├── VPC with subnets across AZs    │
+│  ├── VPC with Multi-AZ subnets      │
 │  ├── Application Load Balancer      │
 │  ├── EC2 instances with Docker      │
 │  ├── ECR repositories               │
+│  ├── CloudFront Distribution        │
+│  ├── S3 Frontend Bucket             │
 │  └── AWS Secrets Manager            │
 └─────────────────────────────────────┘
 ```
 
-## 📁 Directory Structure
-
+### Infrastructure Components (Dev Account)
 ```
-infra/
-├── mgmt-backend-bootstrap/  # Backend infrastructure for management account
-├── dev-backend-bootstrap/   # Backend infrastructure for dev account
-├── org-bootstrap/          # Stage 1: AWS Organization, OUs, and member accounts
-├── org-roles/              # Stage 2: Cross-account deployment roles
-└── live/
-    └── dev/                # Stage 3: Application infrastructure (example)
-        ├── vpc.tf                # VPC with subnets across AZs
-        ├── ec2.tf                # EC2 instances + ECR repository
-        ├── alb.tf                # Application Load Balancer
-        ├── security_groups.tf    # Security groups for ALB + EC2
-        ├── iam.tf                # IAM roles for EC2
-        ├── secrets.tf            # AWS Secrets Manager
-        └── user_data.sh          # Bootstrap script for Docker deployment
+┌─────────────────────────────────────────────────────────────┐
+│                        VPC (10.0.0.0/16)                   │
+│                                                             │
+│  ┌─────────────────┐              ┌─────────────────┐       │
+│  │   Public Subnet │              │   Public Subnet │       │
+│  │   (us-east-1a)  │              │   (us-east-1b)  │       │
+│  │  ┌─────────────┐ │              │                 │       │
+│  │  │     ALB     │ │              │                 │       │
+│  │  │   (HTTPS)   │ │              │                 │       │
+│  │  └─────────────┘ │              │                 │       │
+│  │        │         │              │                 │       │
+│  └────────┼─────────┘              └─────────────────┘       │
+│           │                                                  │
+│  ┌────────▼─────────┐              ┌─────────────────┐       │
+│  │  Private Subnet  │              │  Private Subnet │       │
+│  │   (us-east-1a)   │              │   (us-east-1b)  │       │
+│  │  ┌─────────────┐ │              │                 │       │
+│  │  │EC2 Instance │ │              │                 │       │
+│  │  │   Docker    │ │              │                 │       │
+│  │  │    App      │ │              │                 │       │
+│  │  └─────────────┘ │              │                 │       │
+│  └─────────────────┘              └─────────────────┘       │
+│                                                             │
+│  ┌─────────────────┐              ┌─────────────────┐       │
+│  │Database Subnet  │              │Database Subnet  │       │
+│  │   (us-east-1a)  │              │   (us-east-1b)  │       │
+│  │    (Reserved)   │              │    (Reserved)   │       │
+│  └─────────────────┘              └─────────────────┘       │
+└─────────────────────────────────────────────────────────────┘
+
+External Components:
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   CloudFront    │    │   S3 Bucket     │    │       ECR       │
+│  Distribution   │◄──►│   Frontend      │    │   Repository    │
+│  (Global CDN)   │    │    Static       │    │   Docker Images │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+
+┌─────────────────┐    ┌─────────────────┐
+│ Secrets Manager │    │   ACM Certs     │
+│  Application    │    │   SSL/TLS       │
+│  Environment    │    │   (*.domain)    │
+└─────────────────┘    └─────────────────┘
 ```
 
-## Quick Start
-
-This setup uses **decoupled backends** - management and dev accounts have separate Terraform state infrastructure. See [SETUP.md](SETUP.md) for detailed deployment instructions.
-
-### Prerequisites
+## Prerequisites
 
 Before deploying, ensure you have:
 
@@ -77,21 +107,21 @@ Before deploying, ensure you have:
 4. **EC2 Key Pair** created in the target account for SSH access
 5. **Domain and SSL certificates** configured manually (see Domain & SSL Setup section below)
 
-### User Types
+## User Types
 
 - **Management Account Users**: Deploy organization infrastructure and can assume roles to deploy to member accounts
 - **Dev Account Users**: Deploy directly to dev account using dev account credentials
 
-### Phase 1: Management Account Setup (Administrators)
+## Phase 1: Management Account Setup (Administrators)
 
-#### 1.1 Enable AWS Organizations
+### 1.1 Enable AWS Organizations
 
 Enable AWS Organizations with all features (one-time setup):
 ```bash
 aws organizations create-organization --feature-set ALL
 ```
 
-#### 1.2 Create Management Account Backend
+### 1.2 Create Management Account Backend
 
 Deploy backend infrastructure for management account:
 ```bash
@@ -99,7 +129,7 @@ cd infra/mgmt-backend-bootstrap
 terraform init && terraform apply
 ```
 
-#### 1.3 Deploy Organization & Accounts
+### 1.3 Deploy Organization & Accounts
 
 Configure account emails in `terraform.tfvars` and deploy:
 ```bash
@@ -107,7 +137,7 @@ cd ../org-bootstrap/
 terraform init && terraform apply
 ```
 
-#### 1.4 Create Cross-Account Deployment Roles
+### 1.4 Create Cross-Account Deployment Roles
 
 Deploy cross-account roles:
 ```bash
@@ -115,9 +145,9 @@ cd ../org-roles/
 terraform init && terraform apply
 ```
 
-### Phase 2: Dev Account Setup (Developers)
+## Phase 2: Dev Account Setup (Developers)
 
-#### 2.1 Create Dev Account Backend
+### 2.1 Create Dev Account Backend
 
 Update `terraform.tfvars` with your dev account profile and deploy:
 ```bash
@@ -125,7 +155,7 @@ cd infra/dev-backend-bootstrap
 terraform init && terraform apply
 ```
 
-#### 2.2 Create EC2 Key Pair
+### 2.2 Create EC2 Key Pair
 
 Create a key pair for SSH access to EC2 instances:
 ```bash
@@ -144,7 +174,7 @@ aws ec2 import-key-pair \
   --public-key-material fileb://your-public-key.pub
 ```
 
-#### 2.3 Deploy Dev Application Infrastructure
+### 2.3 Deploy Dev Application Infrastructure
 
 Configure variables in `terraform.tfvars` and deploy:
 ```bash
@@ -286,28 +316,6 @@ aws s3 ls s3://cgm-dev-terraform-state/ --profile your-dev-profile
 aws ec2 describe-instances --profile your-dev-profile
 aws elbv2 describe-load-balancers --profile your-dev-profile
 ```
-
-## Troubleshooting
-
-### Authentication Issues
-- **"Profile not found"**: Run `aws configure sso` to create the profile
-- **403 Forbidden on S3**: Ensure you're using the correct AWS profile for the account
-- **SSO session expired**: Run `aws sso login --profile your-profile`
-
-### Terraform Backend Issues
-- **Backend configuration changed**: Use `terraform init -reconfigure`
-- **State file access denied**: Verify you're in the correct account and have the right permissions
-- **Cross-account state access fails**: Ensure `use_cross_account_role` is set correctly in `terraform.tfvars`
-
-### Infrastructure Deployment
-- **Key pair not found**: Create or import the EC2 key pair in the target account
-- **Role assumption fails**: Verify TerraformDeployRole exists and SSO session is active
-- **Backend not found**: Ensure backend bootstrap was deployed in the correct account
-
-### Profile Configuration Issues
-- **Wrong account when planning**: Check `aws sts get-caller-identity --profile your-profile`
-- **Cross-account access**: Set `use_cross_account_role = false` for direct account access
-- **Remote state access**: Management account users need access to management backend for org-roles state
 
 ## Additional Resources
 
