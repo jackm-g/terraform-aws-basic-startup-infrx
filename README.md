@@ -222,6 +222,38 @@ The EC2 instance includes a user data script that:
 
 Customize `user_data.sh` for your specific application needs.
 
+## Docker Image Deployment
+
+### Building and Pushing to ECR
+
+Before your EC2 instance can run your application, build and push your Docker image to ECR:
+
+```bash
+# Navigate to your project directory
+cd /path/to/your/project
+
+# Login to ECR (replace with your account ID, region, and profile)
+aws ecr get-login-password --region <REGION> --profile <AWS_PROFILE> | docker login --username AWS --password-stdin <ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com
+
+# Build for linux/amd64 (required for EC2, especially important on Mac)
+docker buildx build --platform linux/amd64 -f <DOCKERFILE_PATH> -t <IMAGE_NAME> .
+
+# Tag for ECR
+docker tag <IMAGE_NAME>:latest <ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/<ECR_REPO_NAME>:latest
+
+# Push to ECR
+docker push <ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/<ECR_REPO_NAME>:latest
+```
+
+### Restart Services After Deploy
+
+```bash
+# SSH to EC2 and restart services
+ssh -i ~/.ssh/<KEY_NAME> ubuntu@<EC2_IP>
+sudo systemctl restart <SERVICE_NAME>
+sudo journalctl -u <SERVICE_NAME> -f
+```
+
 ## Domain & SSL Setup
 
 ### Manual Configuration Required

@@ -94,3 +94,49 @@ output "backend_api_url" {
   description = "Backend API URL for frontend configuration"
   value       = var.acm_certificate_arn != null ? "https://${aws_lb.app.dns_name}" : "http://${aws_lb.app.dns_name}"
 }
+
+# Database Outputs
+output "rds_endpoint" {
+  description = "RDS PostgreSQL endpoint"
+  value       = aws_db_instance.main.endpoint
+  sensitive   = true
+}
+
+output "rds_port" {
+  description = "RDS PostgreSQL port"
+  value       = aws_db_instance.main.port
+}
+
+output "rds_database_name" {
+  description = "RDS database name"
+  value       = aws_db_instance.main.db_name
+}
+
+output "rds_username" {
+  description = "RDS master username"
+  value       = aws_db_instance.main.username
+  sensitive   = true
+}
+
+output "database_url" {
+  description = "Complete database URL for Django"
+  value       = "postgresql://${aws_db_instance.main.username}:${random_password.db_password.result}@${aws_db_instance.main.endpoint}/${aws_db_instance.main.db_name}"
+  sensitive   = true
+}
+
+# Redis Outputs
+output "redis_endpoint" {
+  description = "Redis cluster endpoint"
+  value       = aws_elasticache_replication_group.main.configuration_endpoint_address != "" ? aws_elasticache_replication_group.main.configuration_endpoint_address : aws_elasticache_replication_group.main.primary_endpoint_address
+}
+
+output "redis_port" {
+  description = "Redis port"
+  value       = aws_elasticache_replication_group.main.port
+}
+
+output "redis_url" {
+  description = "Complete Redis URL"
+  value       = var.redis_auth_token_enabled ? "redis://:${random_password.redis_auth_token[0].result}@${coalesce(aws_elasticache_replication_group.main.configuration_endpoint_address, aws_elasticache_replication_group.main.primary_endpoint_address)}:${aws_elasticache_replication_group.main.port}" : "redis://${coalesce(aws_elasticache_replication_group.main.configuration_endpoint_address, aws_elasticache_replication_group.main.primary_endpoint_address)}:${aws_elasticache_replication_group.main.port}"
+  sensitive   = true
+}
