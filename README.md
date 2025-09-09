@@ -49,52 +49,6 @@ This setup creates a complete AWS multi-account infrastructure with the followin
 └─────────────────────────────────────┘
 ```
 
-### Infrastructure Components (Dev Account)
-```
-┌─────────────────────────────────────────────────────────────┐
-│                        VPC (10.0.0.0/16)                   │
-│                                                             │
-│  ┌─────────────────┐              ┌─────────────────┐       │
-│  │   Public Subnet │              │   Public Subnet │       │
-│  │   (us-east-1a)  │              │   (us-east-1b)  │       │
-│  │  ┌─────────────┐ │              │                 │       │
-│  │  │     ALB     │ │              │                 │       │
-│  │  │   (HTTPS)   │ │              │                 │       │
-│  │  └─────────────┘ │              │                 │       │
-│  │        │         │              │                 │       │
-│  └────────┼─────────┘              └─────────────────┘       │
-│           │                                                  │
-│  ┌────────▼─────────┐              ┌─────────────────┐       │
-│  │  Private Subnet  │              │  Private Subnet │       │
-│  │   (us-east-1a)   │              │   (us-east-1b)  │       │
-│  │  ┌─────────────┐ │              │                 │       │
-│  │  │EC2 Instance │ │              │                 │       │
-│  │  │   Docker    │ │              │                 │       │
-│  │  │    App      │ │              │                 │       │
-│  │  └─────────────┘ │              │                 │       │
-│  └─────────────────┘              └─────────────────┘       │
-│                                                             │
-│  ┌─────────────────┐              ┌─────────────────┐       │
-│  │Database Subnet  │              │Database Subnet  │       │
-│  │   (us-east-1a)  │              │   (us-east-1b)  │       │
-│  │    (Reserved)   │              │    (Reserved)   │       │
-│  └─────────────────┘              └─────────────────┘       │
-└─────────────────────────────────────────────────────────────┘
-
-External Components:
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   CloudFront    │    │   S3 Bucket     │    │       ECR       │
-│  Distribution   │◄──►│   Frontend      │    │   Repository    │
-│  (Global CDN)   │    │    Static       │    │   Docker Images │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-
-┌─────────────────┐    ┌─────────────────┐
-│ Secrets Manager │    │   ACM Certs     │
-│  Application    │    │   SSL/TLS       │
-│  Environment    │    │   (*.domain)    │
-└─────────────────┘    └─────────────────┘
-```
-
 ## Prerequisites
 
 Before deploying, ensure you have:
