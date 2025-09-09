@@ -60,20 +60,6 @@ variable "django_secret_key" {
   sensitive   = true
 }
 
-variable "database_url" {
-  type        = string
-  description = "Database connection URL"
-  default     = ""
-  sensitive   = true
-}
-
-variable "redis_url" {
-  type        = string
-  description = "Redis connection URL"
-  default     = ""
-  sensitive   = true
-}
-
 variable "whoop_client_secret" {
   type        = string
   description = "Whoop API client secret"
@@ -115,6 +101,13 @@ variable "openai_model" {
   type        = string
   description = "OpenAI model to use"
   default     = "gpt-5-nano"
+}
+
+variable "openai_key" {
+  type        = string
+  description = "OpenAI API key"
+  default     = ""
+  sensitive   = true
 }
 
 variable "ai_analysis_interval_hours" {

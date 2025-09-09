@@ -324,31 +324,7 @@ frontend_domain_name = "www.yourdomain.com"
    aws sso login --profile your-mgmt-profile
    aws sso login --profile your-dev-profile
    ```
-
-## Verification Commands
-
-### Verify Account Access
-```bash
-# Check management account
-aws sts get-caller-identity --profile your-mgmt-profile
-
-# Check dev account
-aws sts get-caller-identity --profile your-dev-profile
-
-# List organization accounts
-aws organizations list-accounts --profile your-mgmt-profile
-```
-
-### Verify Infrastructure
-```bash
-# Verify backend access
-aws s3 ls s3://cgm-dev-terraform-state/ --profile your-dev-profile
-
-# Verify deployed resources
-aws ec2 describe-instances --profile your-dev-profile
-aws elbv2 describe-load-balancers --profile your-dev-profile
-```
-
+   
 ## Additional Resources
 
 - [AWS Organizations Best Practices](https://docs.aws.amazon.com/organizations/latest/userguide/orgs_best-practices.html)

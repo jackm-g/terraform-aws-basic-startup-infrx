@@ -25,6 +25,7 @@ resource "aws_secretsmanager_secret_version" "django_env" {
     WHOOP_CLIENT_ID            = var.whoop_client_id
     WHOOP_REDIRECT_URI         = var.whoop_redirect_uri
     OPENAI_MODEL               = var.openai_model
+    OPENAI_KEY                 = var.openai_key
     AI_ANALYSIS_INTERVAL_HOURS = var.ai_analysis_interval_hours
     AI_ANALYSIS_PERIOD_DAYS    = var.ai_analysis_period_days
     SECURE_SSL_REDIRECT        = var.secure_ssl_redirect
