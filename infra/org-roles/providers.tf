@@ -12,7 +12,7 @@ terraform {
 data "terraform_remote_state" "bootstrap" {
   backend = "s3"
   config = {
-    bucket = "cgm-mgmt-terraform-state"
+    bucket = var.tfstate_bucket
     key    = "org-bootstrap/terraform.tfstate"
     region = "us-east-1"
   }

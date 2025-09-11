@@ -13,5 +13,4 @@ variable "profile" {
 variable "tfstate_bucket" {
   description = "S3 bucket for Terraform state"
   type        = string
-  default     = "jg3-app-tfstate"
 }
