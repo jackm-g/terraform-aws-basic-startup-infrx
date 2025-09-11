@@ -242,22 +242,44 @@ sudo journalctl -u django -f
 
 ### Manual Configuration Required
 
-The infrastructure assumes you have a domain and SSL certificates configured. These must be set up manually:
+The infrastructure can use custom domains with SSL certificates. You can set this up in either your dev account (recommended for simplicity) or use a multi-account setup.
+
+### Option 1: Single Account Setup (Recommended)
+
+Set up everything in your **dev account** for simplicity:
 
 #### 1. **Domain Registration & Route 53**
 - Register your domain (e.g., `yourdomain.com`) or transfer to Route 53
-- Create hosted zone in **management account** Route 53
+- Create hosted zone in your **dev account** Route 53
 - Note the hosted zone ID for DNS record creation
 
 #### 2. **SSL Certificates (ACM)**
-- **Management Account**: Request certificate for your domain (e.g., `yourdomain.com`)
-- **Dev Account**: Request wildcard certificate (e.g., `*.yourdomain.com`) for backend services
-- Use **DNS validation** and add CNAME records to management account Route 53
-- Update `terraform.tfvars` with certificate ARNs
+Request certificates in your **dev account**:
+```bash
+# Request certificate for your domain and subdomains
+aws acm request-certificate \
+  --domain-name yourdomain.com \
+  --subject-alternative-names "*.yourdomain.com" \
+  --validation-method DNS \
+  --region <REGION> \
+  --profile <AWS_PROFILE>
+```
 
-#### 3. **DNS Records (Manual Creation)**
-After deploying infrastructure, manually create these Route 53 records in **management account**:
+#### 3. **DNS Validation**
+- Go to ACM console and copy the DNS validation CNAME records
+- Add these CNAME records to your Route 53 hosted zone
+- Wait for certificate validation (usually takes a few minutes)
 
+#### 4. **Update terraform.tfvars**
+```hcl
+# Use the same certificate for both frontend and backend
+acm_certificate_arn = "arn:aws:acm:region:account-id:certificate/your-cert-id"
+frontend_acm_certificate_arn = "arn:aws:acm:region:account-id:certificate/your-cert-id"
+frontend_domain_name = "www.yourdomain.com"
+```
+
+#### 5. **Create DNS Records After Deployment**
+After running `terraform apply`, create DNS records in Route 53:
 ```bash
 # Get ALB and CloudFront endpoints from Terraform outputs
 terraform output alb_dns_name
@@ -268,15 +290,12 @@ terraform output cloudfront_domain_name
 # api.yourdomain.com → Application Load Balancer
 ```
 
-#### 4. **Update terraform.tfvars**
-```hcl
-# Use certificate ARNs from respective accounts
-acm_certificate_arn = "arn:aws:acm:region:dev-account:certificate/wildcard-cert-id"
-frontend_acm_certificate_arn = "arn:aws:acm:region:dev-account:certificate/www-cert-id"
-frontend_domain_name = "www.yourdomain.com"
-```
+### Option 2: Multi-Account Setup (Enterprise)
 
-**Note**: This multi-account DNS setup (domain in management, infrastructure in dev) is a best practice for enterprise environments.
+For enterprise environments, you can manage DNS in the management account:
+- Domain and certificates in **management account**
+- Infrastructure in **dev account**
+- Requires cross-account certificate sharing or separate certificates per account
 
 ## AWS SSO Setup
 
