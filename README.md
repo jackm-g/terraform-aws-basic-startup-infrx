@@ -128,7 +128,44 @@ aws ec2 import-key-pair \
   --public-key-material fileb://your-public-key.pub
 ```
 
-### 2.3 Deploy Dev Application Infrastructure
+### 2.3 Build and Push Docker Image to ECR
+
+**IMPORTANT**: Before deploying infrastructure, you must push a Docker image to ECR. The EC2 instance will try to pull your application image immediately upon startup.
+
+First, create the ECR repository manually (Terraform will manage it after initial creation):
+```bash
+# Get your ECR repository name from terraform.tfvars
+# Example: ecr_repo_name = "cgm-django-backend"
+
+# Create ECR repository
+aws ecr create-repository \
+  --repository-name <ECR_REPO_NAME> \
+  --region <REGION> \
+  --profile <AWS_PROFILE>
+```
+
+Then build and push your Docker image:
+```bash
+# Navigate to your application directory
+cd /path/to/your/application
+
+# Login to ECR (replace with your actual values)
+aws ecr get-login-password --region <REGION> --profile <AWS_PROFILE> | \
+  docker login --username AWS --password-stdin <ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com
+
+# Build for linux/amd64 (required for EC2)
+docker buildx build --platform linux/amd64 -t <YOUR_APP_NAME> .
+
+# Tag for ECR (use the same repo name from terraform.tfvars)
+docker tag <YOUR_APP_NAME>:latest <ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/<ECR_REPO_NAME>:latest
+
+# Push to ECR
+docker push <ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/<ECR_REPO_NAME>:latest
+```
+
+**Note**: Terraform will reference the existing ECR repository but will not manage it directly. The repository should be created manually before running terraform apply.
+
+### 2.4 Deploy Dev Application Infrastructure
 
 Configure variables in `terraform.tfvars` and deploy:
 ```bash
@@ -176,26 +213,19 @@ The EC2 instance includes a user data script that:
 
 Customize `user_data.sh` for your specific application needs.
 
-## Docker Image Deployment
+## Docker Image Updates
 
-### Building and Pushing to ECR
+### Updating Your Application
 
-Before your EC2 instance can run your application, build and push your Docker image to ECR:
+After your initial deployment, when you need to update your application:
 
 ```bash
 # Navigate to your project directory
 cd /path/to/your/project
 
-# Login to ECR (replace with your account ID, region, and profile)
-aws ecr get-login-password --region <REGION> --profile <AWS_PROFILE> | docker login --username AWS --password-stdin <ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com
-
-# Build for linux/amd64 (required for EC2, especially important on Mac)
-docker buildx build --platform linux/amd64 -f <DOCKERFILE_PATH> -t <IMAGE_NAME> .
-
-# Tag for ECR
+# Build and push updated image
+docker buildx build --platform linux/amd64 -t <IMAGE_NAME> .
 docker tag <IMAGE_NAME>:latest <ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/<ECR_REPO_NAME>:latest
-
-# Push to ECR
 docker push <ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/<ECR_REPO_NAME>:latest
 ```
 
@@ -204,8 +234,8 @@ docker push <ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/<ECR_REPO_NAME>:latest
 ```bash
 # SSH to EC2 and restart services
 ssh -i ~/.ssh/<KEY_NAME> ubuntu@<EC2_IP>
-sudo systemctl restart <SERVICE_NAME>
-sudo journalctl -u <SERVICE_NAME> -f
+sudo systemctl restart django celery-worker celery-beat
+sudo journalctl -u django -f
 ```
 
 ## Domain & SSL Setup

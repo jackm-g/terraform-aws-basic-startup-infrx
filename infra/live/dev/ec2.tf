@@ -27,7 +27,7 @@ resource "aws_instance" "app" {
 
   user_data = templatefile("${path.module}/user_data.sh", {
     region         = var.aws_region
-    image_uri      = aws_ecr_repository.app.repository_url
+    image_uri      = data.aws_ecr_repository.app.repository_url
     image_tag      = "latest"
     secret_arn     = aws_secretsmanager_secret.django_env.arn
     secrets_format = "json"
@@ -47,18 +47,7 @@ resource "aws_instance" "app" {
   }
 }
 
-# ECR Repository for Docker images
-resource "aws_ecr_repository" "app" {
-  name                 = var.ecr_repo_name
-  image_tag_mutability = "MUTABLE"
-
-  image_scanning_configuration {
-    scan_on_push = false
-  }
-
-  tags = {
-    Name    = "${var.project}-${var.env}-ecr"
-    Project = var.project
-    Env     = var.env
-  }
+# Reference existing ECR Repository (created manually)
+data "aws_ecr_repository" "app" {
+  name = var.ecr_repo_name
 }
