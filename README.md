@@ -1,52 +1,101 @@
 # AWS Organization & Infrastructure Terraform
 
-This repository provides a complete Terraform setup for bootstrapping AWS Organizations and deploying basic application infrastructure. It's designed as a foundation for multi-account AWS environments with proper management and development accounts.
+This repository provides a complete Terraform setup for bootstrapping AWS Organizations and deploying basic application infrastructure. It's designed as a foundation for multi-account AWS environments with proper management and sub-accounts, like a develoment, staging, and prod account.
 
 ## Architecture Overview
 
 This setup creates a complete AWS multi-account infrastructure with the following components:
 
-### Account Structure
+### Infrastructure Phases
+
+## Phase 1: Management Account Setup
 ```
-┌─────────────────────────────────────┐
-│         MANAGEMENT ACCOUNT          │
-│  ┌─────────────────────────────────┐ │
-│  │     Management Backend          │ │
-│  │  S3: mgmt-terraform-state       │ │
-│  │  DDB: mgmt-terraform-locks      │ │
-│  └─────────────────────────────────┘ │
-│                                     │
-│  ├── AWS Organization (All Features) │
-│  ├── Route 53 Hosted Zone           │
-│  │   ├── yourdomain.com             │
-│  │   ├── www.yourdomain.com         │
-│  │   └── api.yourdomain.com         │
-│  ├── Organizational Units           │
-│  │   └── Workloads/                 │
-│  │       ├── Dev/                   │
-│  │       └── Prod/                  │
-│  └── Cross-Account Roles            │
-└─────────────────────────────────────┘
-                    │
-                    │ DNS Resolution
-                    │ Cross-account
-                    ▼
-┌─────────────────────────────────────┐
-│           DEV ACCOUNT               │
-│  ┌─────────────────────────────────┐ │
-│  │        Dev Backend              │ │
-│  │  S3: dev-terraform-state        │ │
-│  │  DDB: dev-terraform-locks       │ │
-│  └─────────────────────────────────┘ │
-│                                     │
-│  ├── VPC with Multi-AZ subnets      │
-│  ├── Application Load Balancer      │
-│  ├── EC2 instances with Docker      │
-│  ├── ECR repositories               │
-│  ├── CloudFront Distribution        │
-│  ├── S3 Frontend Bucket             │
-│  └── AWS Secrets Manager            │
-└─────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                   MANAGEMENT ACCOUNT                        │
+│                                                             │
+│  Step 1.1: Backend Bootstrap                                │
+│  ┌─────────────────────────────────────┐                   │
+│  │     Management Backend              │                   │
+│  │  S3: mgmt-terraform-state           │                   │
+│  │  DDB: mgmt-terraform-locks          │                   │
+│  └─────────────────────────────────────┘                   │
+│                                                             │
+│  Step 1.2: Organization & Accounts                          │
+│  ├── AWS Organization (All Features)                        │
+│  ├── Organizational Units                                   │
+│  │   └── Workloads/                                         │
+│  │       ├── Dev/                                           │
+│  │       └── Prod/                                          │
+│  └── Member Accounts Creation                               │
+│      ├── Dev Account                                        │
+│      └── Prod Account                                       │
+│                                                             │
+│  Step 1.3: Cross-Account Roles                              │
+│  └── TerraformDeployRole in each member account             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Phase 2: Dev Account Setup
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     DEV ACCOUNT                             │
+│                                                             │
+│  Step 2.1: Backend Bootstrap                                │
+│  ┌─────────────────────────────────────┐                   │
+│  │        Dev Backend                  │                   │
+│  │  S3: dev-terraform-state            │                   │
+│  │  DDB: dev-terraform-locks           │                   │
+│  └─────────────────────────────────────┘                   │
+│                                                             │
+│  Step 2.2: Application Infrastructure                       │
+│  ┌─────────────────────────────────────────────────────────┐ │
+│  │                VPC & Networking                         │ │
+│  │  ├── VPC with Multi-AZ deployment                      │ │
+│  │  ├── Public Subnets (ALB, EC2)                         │ │
+│  │  ├── Private Subnets (Redis)                           │ │
+│  │  └── Database Subnets (RDS)                            │ │
+│  └─────────────────────────────────────────────────────────┘ │
+│                                                             │
+│  ┌─────────────────────────────────────────────────────────┐ │
+│  │               Backend Services                          │ │
+│  │  ├── EC2 Instance (Ubuntu 24.04 + Docker)              │ │
+│  │  ├── Application Load Balancer (HTTP/HTTPS)            │ │
+│  │  ├── RDS PostgreSQL (Multi-AZ capable)                 │ │
+│  │  ├── ElastiCache Redis (HA capable)                    │ │
+│  │  └── ECR Repository (manual creation)                  │ │
+│  └─────────────────────────────────────────────────────────┘ │
+│                                                             │
+│  ┌─────────────────────────────────────────────────────────┐ │
+│  │               Frontend Services                         │ │
+│  │  ├── S3 Bucket (React app hosting)                     │ │
+│  │  ├── CloudFront Distribution (CDN + SSL)               │ │
+│  │  └── Origin Access Control (OAC)                       │ │
+│  └─────────────────────────────────────────────────────────┘ │
+│                                                             │
+│  ┌─────────────────────────────────────────────────────────┐ │
+│  │            Security & Management                        │ │
+│  │  ├── AWS Secrets Manager (DB passwords, tokens)        │ │
+│  │  ├── Security Groups (multi-tier)                      │ │
+│  │  ├── IAM Roles & Policies                              │ │
+│  │  └── SSL Certificates (ACM)                            │ │
+│  └─────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Optional: CI/CD Infrastructure
+```
+┌─────────────────────────────────────────────────────────────┐
+│                CI/EC2 Infrastructure                        │
+│                                                             │
+│  ┌─────────────────────────────────────────────────────────┐ │
+│  │            Self-Hosted CI Runner                        │ │
+│  │  ├── EC2 Instance (GitHub Actions Runner)              │ │
+│  │  ├── Docker Engine (for builds)                        │ │
+│  │  ├── GitHub Token Integration                          │ │
+│  │  ├── Elastic IP (stable access)                        │ │
+│  │  └── Security Groups (SSH + outbound)                  │ │
+│  └─────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ## Prerequisites
@@ -77,13 +126,37 @@ aws organizations create-organization --feature-set ALL
 
 ### 1.2 Create Management Account Backend
 
-Deploy backend infrastructure for management account:
+First, configure your backend resource names in `terraform.tfvars`:
 ```bash
 cd infra/mgmt-backend-bootstrap
+# Edit terraform.tfvars - update bucket_name and dynamodb_table_name with your preferred names
+# Example: bucket_name = "yourorg-mgmt-terraform-bucket"
+```
+
+Then deploy backend infrastructure:
+```bash
 terraform init && terraform apply
 ```
 
-### 1.3 Deploy Organization & Accounts
+**Important**: After applying, note the outputs (`s3_bucket_name` and `dynamodb_table_name`) to update backend configurations.
+
+### 1.3 Update Backend Configurations
+
+Before proceeding, update the `backend.tf` files with the actual bucket and table names created by the bootstrap:
+
+```bash
+# Get the backend resource names
+terraform output s3_bucket_name
+terraform output dynamodb_table_name
+
+# Update infra/org-bootstrap/backend.tf
+# Update infra/org-roles/backend.tf
+# Replace bucket and dynamodb_table values with the actual names from outputs
+```
+
+**Why**: Backend configurations are hardcoded but the actual resource names depend on your `terraform.tfvars` settings. Terraform requires the exact resource names for remote state management.
+
+### 1.4 Deploy Organization & Accounts
 
 Configure account emails in `terraform.tfvars` and deploy:
 ```bash
@@ -91,7 +164,7 @@ cd ../org-bootstrap/
 terraform init && terraform apply
 ```
 
-### 1.4 Create Cross-Account Deployment Roles
+### 1.5 Create Cross-Account Deployment Roles
 
 Deploy cross-account roles:
 ```bash
@@ -103,13 +176,39 @@ terraform init && terraform apply
 
 ### 2.1 Create Dev Account Backend
 
-Update `terraform.tfvars` with your dev account profile and deploy:
+First, configure your backend resource names and AWS profile in `terraform.tfvars`:
 ```bash
 cd infra/dev-backend-bootstrap
+# Edit terraform.tfvars - update:
+# - profile = "your-dev-aws-profile"
+# - bucket_name = "yourorg-dev-terraform-bucket" 
+# - dynamodb_table_name = "yourorg-dev-terraform-table"
+```
+
+Then deploy backend infrastructure:
+```bash
 terraform init && terraform apply
 ```
 
-### 2.2 Create EC2 Key Pair
+**Important**: After applying, note the outputs (`s3_bucket_name` and `dynamodb_table_name`) to update dev backend configurations.
+
+### 2.2 Update Dev Backend Configurations
+
+Update the `backend.tf` files in dev environments with the actual bucket and table names:
+
+```bash
+# Get the backend resource names
+terraform output s3_bucket_name
+terraform output dynamodb_table_name
+
+# Update infra/live/dev/backend.tf
+# Update infra/live/ci-ec2/backend.tf (if using)
+# Replace bucket and dynamodb_table values with the actual names from outputs
+```
+
+**Why**: Like management account, dev backend configurations need the exact resource names for remote state storage and locking.
+
+### 2.3 Create EC2 Key Pair
 
 Create a key pair for SSH access to EC2 instances:
 ```bash
@@ -128,7 +227,7 @@ aws ec2 import-key-pair \
   --public-key-material fileb://your-public-key.pub
 ```
 
-### 2.3 Build and Push Docker Image to ECR
+### 2.4 Build and Push Docker Image to ECR
 
 **IMPORTANT**: Before deploying infrastructure, you must push a Docker image to ECR. The EC2 instance will try to pull your application image immediately upon startup.
 
@@ -165,7 +264,7 @@ docker push <ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/<ECR_REPO_NAME>:latest
 
 **Note**: Terraform will reference the existing ECR repository but will not manage it directly. The repository should be created manually before running terraform apply.
 
-### 2.4 Deploy Dev Application Infrastructure
+### 2.5 Deploy Dev Application Infrastructure
 
 Configure variables in `terraform.tfvars` and deploy:
 ```bash
@@ -173,26 +272,6 @@ cd ../live/dev/
 # Update terraform.tfvars with your configuration
 terraform init && terraform apply
 ```
-
-## What Gets Created
-
-### Management Account Infrastructure
-- **Backend**: S3 bucket and DynamoDB table for management account state
-- **Organization**: AWS Organization with "All Features" enabled
-- **OUs**: Organizational Units (`Workloads/Dev`, `Workloads/Prod`)
-- **Accounts**: Member accounts (DEV and PROD) with `OrganizationAccountAccessRole`
-- **Roles**: `TerraformDeployRole` in each member account with trust to management account
-
-### Dev Account Infrastructure  
-- **Backend**: S3 bucket and DynamoDB table for dev account state
-- **VPC**: Public, private, and database subnets across multiple AZs
-- **Networking**: Internet Gateway and optional NAT Gateway
-- **Load Balancer**: Application Load Balancer with HTTPS listener
-- **Security**: Security Groups for ALB and EC2
-- **Compute**: EC2 instance with Docker pre-installed
-- **Container Registry**: ECR repository for container images
-- **Secrets**: AWS Secrets Manager for application configuration
-- **IAM**: Roles for EC2 to access ECR and Secrets Manager
 
 ## Customization
 
@@ -244,9 +323,6 @@ sudo journalctl -u django -f
 
 The infrastructure can use custom domains with SSL certificates. You can set this up in either your dev account (recommended for simplicity) or use a multi-account setup.
 
-### Option 1: Single Account Setup (Recommended)
-
-Set up everything in your **dev account** for simplicity:
 
 #### 1. **Domain Registration & Route 53**
 - Register your domain (e.g., `yourdomain.com`) or transfer to Route 53
@@ -290,12 +366,7 @@ terraform output cloudfront_domain_name
 # api.yourdomain.com → Application Load Balancer
 ```
 
-### Option 2: Multi-Account Setup (Enterprise)
-
-For enterprise environments, you can manage DNS in the management account:
-- Domain and certificates in **management account**
-- Infrastructure in **dev account**
-- Requires cross-account certificate sharing or separate certificates per account
+**Note**: For enterprise environments, you can manage DNS in the management account instead (domain and certificates in **management account**, infrastructure in **dev account**). In this case, you'll need to update Route 53 and ACM in the AWS management account rather than the dev account.
 
 ## AWS SSO Setup
 
