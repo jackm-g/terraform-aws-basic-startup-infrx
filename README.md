@@ -115,7 +115,7 @@ Before deploying, ensure you have:
 - **Management Account Users**: Deploy organization infrastructure and can assume roles to deploy to member accounts
 - **Dev Account Users**: Deploy directly to dev account using dev account credentials
 
-## Phase 1: Management Account Setup (Administrators)
+## Phase 1: Management Account Setup
 
 ### 1.1 Enable AWS Organizations
 
@@ -172,7 +172,7 @@ cd ../org-roles/
 terraform init && terraform apply
 ```
 
-## Phase 2: Dev Account Setup (Developers)
+## Phase 2: Dev Account Setup
 
 ### 2.1 Create Dev Account Backend
 
@@ -205,8 +205,6 @@ terraform output dynamodb_table_name
 # Update infra/live/ci-ec2/backend.tf (if using)
 # Replace bucket and dynamodb_table values with the actual names from outputs
 ```
-
-**Why**: Like management account, dev backend configurations need the exact resource names for remote state storage and locking.
 
 ### 2.3 Create EC2 Key Pair
 
