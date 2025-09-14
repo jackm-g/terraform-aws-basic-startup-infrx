@@ -63,6 +63,18 @@ variable "allowed_ssh_cidrs" {
   default     = []
 }
 
+# ECR Repository Variable (for existing repository in this account)
+variable "ecr_repository_name" {
+  description = "Name of the existing ECR repository in this AWS account"
+  type        = string
+}
+
+variable "aws_region" {
+  description = "AWS region where ECR repository is located"
+  type        = string
+  default     = "us-east-1"
+}
+
 # modules/ci-runner/main.tf
 terraform {
   required_providers {
@@ -107,6 +119,15 @@ data "aws_ami" "ubuntu" {
   }
 }
 
+# Data source for existing ECR repository
+data "aws_ecr_repository" "app" {
+  name = var.ecr_repository_name
+}
+
+# Get current AWS account ID and region
+data "aws_caller_identity" "current" {}
+data "aws_region" "current" {}
+
 # Security group for the CI runner
 resource "aws_security_group" "ci_runner" {
   name_prefix = "${var.runner_name}-"
@@ -139,7 +160,7 @@ resource "aws_security_group" "ci_runner" {
   })
 }
 
-# IAM role for the CI runner (for potential future AWS integrations)
+# IAM role for the CI runner (for AWS integrations including ECR)
 resource "aws_iam_role" "ci_runner" {
   name = "${var.runner_name}-role"
 
@@ -157,6 +178,50 @@ resource "aws_iam_role" "ci_runner" {
   })
 
   tags = var.tags
+}
+
+# ECR permissions for CI runner to build and push images
+resource "aws_iam_policy" "ci_runner_ecr_policy" {
+  name        = "${var.runner_name}-ecr-policy"
+  description = "Allows CI runner to interact with ECR for Docker image operations"
+  
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Action = [
+          "ecr:GetAuthorizationToken"
+        ],
+        Resource = "*"
+      },
+      {
+        Effect = "Allow",
+        Action = [
+          "ecr:BatchCheckLayerAvailability",
+          "ecr:BatchGetImage",
+          "ecr:CompleteLayerUpload",
+          "ecr:GetDownloadUrlForLayer",
+          "ecr:InitiateLayerUpload",
+          "ecr:PutImage",
+          "ecr:UploadLayerPart",
+          "ecr:DescribeRepositories",
+          "ecr:ListImages"
+        ],
+        Resource = [
+          data.aws_ecr_repository.app.arn
+        ]
+      }
+    ]
+  })
+
+  tags = var.tags
+}
+
+# Attach ECR policy to CI runner role
+resource "aws_iam_role_policy_attachment" "ci_runner_ecr_attach" {
+  role       = aws_iam_role.ci_runner.name
+  policy_arn = aws_iam_policy.ci_runner_ecr_policy.arn
 }
 
 # IAM instance profile
@@ -191,6 +256,7 @@ resource "aws_instance" "ci_runner" {
     volume_type = "gp3"
     volume_size = 50
     encrypted   = true
+    delete_on_termination = true
     
     tags = merge(var.tags, {
       Name = "${var.runner_name}-root-volume"

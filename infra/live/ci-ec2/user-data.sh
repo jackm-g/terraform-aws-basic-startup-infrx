@@ -86,28 +86,75 @@ chmod 600 /opt/cgm/.env.test
 sudo -u runner bash << 'RUNNER_SETUP'
 cd /opt/actions-runner
 
-# Download and extract GitHub Actions runner
-RUNNER_VERSION=$(curl -s https://api.github.com/repos/actions/runner/releases/latest | jq -r '.tag_name' | sed 's/^v//')
+# Download GitHub Actions runner
+RUNNER_VERSION="2.320.0"
 curl -o actions-runner-linux-x64-$${RUNNER_VERSION}.tar.gz -L https://github.com/actions/runner/releases/download/v$${RUNNER_VERSION}/actions-runner-linux-x64-$${RUNNER_VERSION}.tar.gz
-tar xzf ./actions-runner-linux-x64-$${RUNNER_VERSION}.tar.gz
-rm ./actions-runner-linux-x64-$${RUNNER_VERSION}.tar.gz
 
-# Configure the runner with additional labels for your pipeline
+# Verify download was successful
+if [ ! -f "actions-runner-linux-x64-$${RUNNER_VERSION}.tar.gz" ]; then
+    echo "Failed to download GitHub Actions runner"
+    exit 1
+fi
+
+# Extract the runner
+tar xzf ./actions-runner-linux-x64-$${RUNNER_VERSION}.tar.gz
+
+# Verify extraction was successful
+if [ ! -f "config.sh" ]; then
+    echo "Failed to extract GitHub Actions runner - config.sh not found"
+    exit 1
+fi
+
+# Get registration token from GitHub API using PAT
+REGISTRATION_TOKEN=$(curl -X POST \
+    -H "Authorization: token ${github_token}" \
+    -H "Accept: application/vnd.github.v3+json" \
+    https://api.github.com/repos/${github_repo}/actions/runners/registration-token | jq -r '.token')
+
+# Verify registration token was obtained
+if [ -z "$REGISTRATION_TOKEN" ] || [ "$REGISTRATION_TOKEN" = "null" ]; then
+    echo "Failed to obtain registration token from GitHub API"
+    exit 1
+fi
+
+# Configure the runner with the registration token
 ./config.sh \
     --url https://github.com/${github_repo} \
-    --token ${github_token} \
+    --token $REGISTRATION_TOKEN \
     --name ${runner_name} \
     --work _work \
     --labels self-hosted,linux,x64,docker \
     --unattended \
     --replace
 
+# Verify configuration was successful
+if [ ! -f ".runner" ]; then
+    echo "Runner configuration failed - .runner file not found"
+    exit 1
+fi
+
 RUNNER_SETUP
 
 # Install and start the runner service
 cd /opt/actions-runner
-./svc.sh install runner
-./svc.sh start
+
+# Verify svc.sh exists before trying to use it
+if [ ! -f "svc.sh" ]; then
+    echo "ERROR: svc.sh not found in /opt/actions-runner"
+    exit 1
+fi
+
+# Install the service
+if ! ./svc.sh install runner; then
+    echo "ERROR: Failed to install runner service"
+    exit 1
+fi
+
+# Start the service
+if ! ./svc.sh start; then
+    echo "ERROR: Failed to start runner service"
+    exit 1
+fi
 
 # Enable Docker service
 systemctl enable docker

@@ -18,6 +18,8 @@ Edit `terraform.tfvars` and update the following required values:
 - `key_name`: Your AWS EC2 key pair name
 - `allowed_ssh_cidrs`: Your public IP address for SSH access
 - `env_file_content`: Environment variables for your tests
+- `ecr_repository_name`: Name of your existing ECR repository in this AWS account
+- `aws_region`: AWS region where your ECR repository is located
 
 ### 2. Set GitHub Token
 
@@ -37,13 +39,24 @@ terraform apply
 
 ## What Gets Created
 
+### CI Infrastructure
 - **EC2 Instance**: t3.large instance with Docker and Node.js in your default VPC
 - **Security Group**: SSH access from specified IPs  
-- **IAM Role**: For potential AWS integrations
+- **IAM Role**: With ECR permissions for Docker image operations
 - **Elastic IP**: Stable public IP address
 - **GitHub Actions Runner**: Self-hosted runner registered to your repo
 
+### CD Infrastructure  
+- **GitHub OIDC Provider**: For secure authentication without long-lived keys
+- **GitHubCDRole**: Least-privilege IAM role for CD pipeline ECR operations
+- **ECR Integration**: Connects to your existing ECR repository in this AWS account
+- **IAM Policies**: Scoped permissions for the specified repository in this account
+
+**Account Separation**: Deploy this infrastructure separately in both dev/staging and production AWS accounts using different AWS profiles.
+
 The configuration automatically uses your AWS account's default VPC and subnet, so no VPC setup is required.
+
+> 📋 **CD Pipeline Setup**: See [CD-AWS-SETUP.md](./CD-AWS-SETUP.md) for complete GitHub Actions CD pipeline configuration instructions.
 
 ## Runner Features
 
@@ -73,6 +86,20 @@ The runner includes a test environment file at `/opt/cgm/.env.test` with your sp
 - Setup log: `/var/log/runner-setup.log`
 - Monitor log: `/var/log/runner-monitor.log`
 
+## Outputs
+
+After deployment, view important configuration values:
+
+```bash
+# Get all CD pipeline setup values
+terraform output github_actions_setup_summary
+
+# Individual outputs
+terraform output github_cd_role_arn
+terraform output ecr_repository_url
+terraform output ecr_repository_name
+```
+
 ## Cleanup
 
 To destroy the CI runner:
@@ -81,4 +108,4 @@ To destroy the CI runner:
 terraform destroy
 ```
 
-Note: This will also unregister the runner from GitHub.
+Note: This will also unregister the runner from GitHub. Your existing ECR repositories will not be affected.
