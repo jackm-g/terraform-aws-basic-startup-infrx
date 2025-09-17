@@ -86,3 +86,43 @@ resource "aws_iam_role_policy_attachment" "github_cd_ecr_attach" {
   role       = aws_iam_role.github_cd_role.name
   policy_arn = aws_iam_policy.ecr_push_policy.arn
 }
+
+# SSM policy for CD pipeline (if GitHub Actions needs to run SSM commands)
+resource "aws_iam_policy" "ssm_sendcommand_policy" {
+  name        = "SSMSendCommandPolicy"
+  description = "Allows GitHub Actions CD pipeline to execute SSM commands"
+  
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Action = [
+          "ssm:SendCommand",
+          "ssm:GetCommandInvocation",
+          "ssm:DescribeInstanceInformation",
+          "ssm:ListCommandInvocations",
+          "ssm:DescribeCommands",
+          "ssm:ListCommands"
+        ],
+        Resource = "*"
+      },
+      {
+        Effect = "Allow",
+        Action = [
+          "ec2:DescribeInstances",
+          "ec2:DescribeInstanceStatus"
+        ],
+        Resource = "*"
+      }
+    ]
+  })
+
+  tags = var.tags
+}
+
+# Attach SSM policy to CD role
+resource "aws_iam_role_policy_attachment" "github_cd_ssm_attach" {
+  role       = aws_iam_role.github_cd_role.name
+  policy_arn = aws_iam_policy.ssm_sendcommand_policy.arn
+}

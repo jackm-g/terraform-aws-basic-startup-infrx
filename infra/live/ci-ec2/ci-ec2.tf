@@ -312,3 +312,40 @@ output "ssh_command" {
   description = "SSH command to connect to the runner"
   value       = "ssh -i /path/to/${var.key_name}.pem ubuntu@${aws_eip.ci_runner.public_ip}"
 }
+
+# SSM permissions for CI runner instance (if SSM commands target this instance)
+resource "aws_iam_policy" "ci_runner_ssm_policy" {
+  name        = "${var.runner_name}-ssm-policy"
+  description = "Allows CI runner instance to be managed via SSM"
+  
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Action = [
+          "ssm:UpdateInstanceInformation",
+          "ssm:SendCommandInvocation",
+          "ssm:GetParameters",
+          "ssm:GetParameter",
+          "ssm:PutParameter"
+        ],
+        Resource = "*"
+      }
+    ]
+  })
+
+  tags = var.tags
+}
+
+# Attach SSM agent policy to CI runner role
+resource "aws_iam_role_policy_attachment" "ci_runner_ssm_attach" {
+  role       = aws_iam_role.ci_runner.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+# Attach custom SSM policy to CI runner role
+resource "aws_iam_role_policy_attachment" "ci_runner_ssm_custom_attach" {
+  role       = aws_iam_role.ci_runner.name
+  policy_arn = aws_iam_policy.ci_runner_ssm_policy.arn
+}

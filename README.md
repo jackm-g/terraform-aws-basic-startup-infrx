@@ -402,7 +402,7 @@ terraform output cloudfront_redirect_domain_name
    ```bash
    aws configure sso
    # SSO session name: your-dev-sso
-   # Account: Your dev account ID
+   # Account: Your dev account ID`
    # Role: AdministratorAccess
    # Profile name: your-dev-profile
    ```
