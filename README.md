@@ -358,11 +358,27 @@ After running `terraform apply`, create DNS records in Route 53:
 # Get ALB and CloudFront endpoints from Terraform outputs
 terraform output alb_dns_name
 terraform output cloudfront_domain_name
-
-# Create A records (Alias) in Route 53:
-# www.yourdomain.com → CloudFront distribution
-# api.yourdomain.com → Application Load Balancer
+terraform output cloudfront_redirect_domain_name
 ```
+
+**Manual Route 53 Configuration (AWS Console):**
+
+1. **For www subdomain (main site):**
+   - Record type: `CNAME`
+   - Name: `www.yourdomain.com`
+   - Value: Use `cloudfront_domain_name` output from Terraform
+
+2. **For apex domain (redirect to www):**
+   - Record type: `A` 
+   - Name: `yourdomain.com` (leave empty for root domain)
+   - Alias: Yes
+   - Value: Use `cloudfront_redirect_domain_name` output from Terraform
+   - Route traffic to: CloudFront distribution
+
+3. **For API subdomain (optional):**
+   - Record type: `CNAME`
+   - Name: `api.yourdomain.com`
+   - Value: Use `alb_dns_name` output from Terraform
 
 **Note**: For enterprise environments, you can manage DNS in the management account instead (domain and certificates in **management account**, infrastructure in **dev account**). In this case, you'll need to update Route 53 and ACM in the AWS management account rather than the dev account.
 

@@ -1,7 +1,7 @@
 # S3 bucket for React app hosting
 resource "aws_s3_bucket" "frontend" {
   bucket = var.s3_bucket_name
-
+  force_destroy = true
   tags = {
     Name    = "${var.project}-${var.env}-frontend"
     Project = var.project
@@ -85,7 +85,7 @@ resource "aws_cloudfront_distribution" "frontend" {
   comment             = "${var.project} ${var.env} frontend distribution"
   default_root_object = "index.html"
 
-  # Configure aliases if custom domain is provided
+  # Configure aliases for www domain only (apex domain handled by separate distribution)
   aliases = var.frontend_domain_name != null ? [var.frontend_domain_name] : []
 
   default_cache_behavior {
@@ -221,5 +221,97 @@ resource "aws_cloudfront_response_headers_policy" "frontend" {
       value    = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' ${aws_lb.app.dns_name} https://${aws_lb.app.dns_name};"
       override = true
     }
+  }
+}
+
+# S3 bucket for apex domain redirect
+resource "aws_s3_bucket" "frontend_redirect" {
+  bucket        = "${var.s3_bucket_name}-redirect"
+  force_destroy = true
+
+  tags = {
+    Name    = "${var.project}-${var.env}-frontend-redirect"
+    Project = var.project
+    Env     = var.env
+  }
+}
+
+# Configure S3 bucket for website redirect
+resource "aws_s3_bucket_website_configuration" "frontend_redirect" {
+  bucket = aws_s3_bucket.frontend_redirect.id
+
+  redirect_all_requests_to {
+    host_name = var.frontend_domain_name
+    protocol  = "https"
+  }
+}
+
+# Block public access for redirect bucket (CloudFront will access it)
+resource "aws_s3_bucket_public_access_block" "frontend_redirect" {
+  bucket = aws_s3_bucket.frontend_redirect.id
+
+  block_public_acls       = false
+  block_public_policy     = false
+  ignore_public_acls      = false
+  restrict_public_buckets = false
+}
+
+# CloudFront distribution for apex domain redirect
+resource "aws_cloudfront_distribution" "frontend_redirect" {
+  origin {
+    domain_name = aws_s3_bucket_website_configuration.frontend_redirect.website_endpoint
+    origin_id   = "S3-${aws_s3_bucket.frontend_redirect.bucket}-redirect"
+
+    custom_origin_config {
+      http_port              = 80
+      https_port             = 443
+      origin_protocol_policy = "http-only"
+      origin_ssl_protocols   = ["TLSv1.2"]
+    }
+  }
+
+  enabled = true
+  comment = "${var.project} ${var.env} frontend apex redirect"
+
+  # Alias for apex domain (cgmdevai.com)
+  aliases = var.frontend_domain_name != null ? [replace(var.frontend_domain_name, "www.", "")] : []
+
+  default_cache_behavior {
+    allowed_methods        = ["GET", "HEAD"]
+    cached_methods         = ["GET", "HEAD"]
+    target_origin_id       = "S3-${aws_s3_bucket.frontend_redirect.bucket}-redirect"
+    compress               = true
+    viewer_protocol_policy = "redirect-to-https"
+
+    forwarded_values {
+      query_string = false
+      cookies {
+        forward = "none"
+      }
+    }
+
+    min_ttl     = 0
+    default_ttl = 86400
+    max_ttl     = 31536000
+  }
+
+  price_class = var.cloudfront_price_class
+
+  restrictions {
+    geo_restriction {
+      restriction_type = "none"
+    }
+  }
+
+  viewer_certificate {
+    acm_certificate_arn      = var.frontend_acm_certificate_arn
+    ssl_support_method       = "sni-only"
+    minimum_protocol_version = "TLSv1.2_2021"
+  }
+
+  tags = {
+    Name    = "${var.project}-${var.env}-frontend-redirect"
+    Project = var.project
+    Env     = var.env
   }
 }

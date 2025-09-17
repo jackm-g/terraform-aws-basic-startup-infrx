@@ -90,6 +90,22 @@ output "frontend_url" {
   value       = var.frontend_domain_name != null ? "https://${var.frontend_domain_name}" : "https://${aws_cloudfront_distribution.frontend.domain_name}"
 }
 
+# Redirect CloudFront Distribution Outputs
+output "cloudfront_redirect_distribution_id" {
+  description = "ID of the CloudFront redirect distribution"
+  value       = aws_cloudfront_distribution.frontend_redirect.id
+}
+
+output "cloudfront_redirect_domain_name" {
+  description = "Domain name of the CloudFront redirect distribution"
+  value       = aws_cloudfront_distribution.frontend_redirect.domain_name
+}
+
+output "s3_redirect_bucket_name" {
+  description = "Name of the S3 bucket for apex domain redirect"
+  value       = aws_s3_bucket.frontend_redirect.bucket
+}
+
 output "backend_api_url" {
   description = "Backend API URL for frontend configuration"
   value       = var.acm_certificate_arn != null ? "https://${aws_lb.app.dns_name}" : "http://${aws_lb.app.dns_name}"
